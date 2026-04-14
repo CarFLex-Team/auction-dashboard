@@ -32,7 +32,9 @@ function titleCase(value) {
 }
 
 function uniqueSorted(values) {
-  return [...new Set(values)].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  return [...new Set(values)]
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
 }
 
 function average(values) {
@@ -44,9 +46,7 @@ function median(values) {
   if (!values.length) return 0;
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2
-    ? sorted[mid]
-    : (sorted[mid - 1] + sorted[mid]) / 2;
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 const money = new Intl.NumberFormat("en-CA", {
@@ -63,7 +63,7 @@ export default function App() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
+  const [selectedYear, setSelectedYear] = useState("ALL");
   const [selectedMake, setSelectedMake] = useState("ALL");
   const [selectedModel, setSelectedModel] = useState("ALL");
   const [selectedTrim, setSelectedTrim] = useState("ALL");
@@ -79,7 +79,7 @@ export default function App() {
           const cleaned = results.data
             .map((row, index) => ({
               id: `${index}-${cleanText(row.vin) || "row"}`,
-              year: parseNumber(row.year),
+              year: row.year,
               make: cleanText(row.make).toUpperCase(),
               model: cleanText(row.model),
               trim: cleanText(row.trim),
@@ -102,11 +102,12 @@ export default function App() {
             }))
             .filter(
               (row) =>
+                row.year > 1900 &&
                 row.make &&
                 row.model &&
                 row.trim &&
                 row.province &&
-                row.price > 0
+                row.price > 0,
             );
 
           setData(cleaned);
@@ -125,24 +126,27 @@ export default function App() {
     });
   }, []);
 
-  const makeOptions = useMemo(() => {
-    return uniqueSorted(data.map((row) => row.make));
+  const yearOptions = useMemo(() => {
+    return uniqueSorted(data.map((row) => row.year));
   }, [data]);
+  const makeOptions = useMemo(() => {
+    const rows =
+      selectedYear === "ALL"
+        ? data
+        : data.filter((row) => row.year === selectedYear);
+
+    return uniqueSorted(rows.map((row) => row.make));
+  }, [data, selectedYear]);
 
   const modelOptions = useMemo(() => {
-    const rows =
-      selectedMake === "ALL"
-        ? data
-        : data.filter((row) => row.make === selectedMake);
+    const rows = data.filter((row) => row.make === selectedMake);
 
     return uniqueSorted(rows.map((row) => row.model));
   }, [data, selectedMake]);
 
   const trimOptions = useMemo(() => {
     const rows = data.filter(
-      (row) =>
-        (selectedMake === "ALL" || row.make === selectedMake) &&
-        (selectedModel === "ALL" || row.model === selectedModel)
+      (row) => row.make === selectedMake && row.model === selectedModel,
     );
 
     return uniqueSorted(rows.map((row) => row.trim));
@@ -152,17 +156,27 @@ export default function App() {
     return uniqueSorted(data.map((row) => row.province));
   }, [data]);
 
-  const activeMarkets = selectedMarkets.length ? selectedMarkets : marketOptions;
+  const activeMarkets = selectedMarkets.length
+    ? selectedMarkets
+    : marketOptions;
 
   const filteredRows = useMemo(() => {
     return data.filter(
       (row) =>
-        (selectedMake === "ALL" || row.make === selectedMake) &&
-        (selectedModel === "ALL" || row.model === selectedModel) &&
-        (selectedTrim === "ALL" || row.trim === selectedTrim) &&
-        activeMarkets.includes(row.province)
+        row.year === selectedYear &&
+        row.make === selectedMake &&
+        row.model === selectedModel &&
+        row.trim === selectedTrim &&
+        activeMarkets.includes(row.province),
     );
-  }, [data, selectedMake, selectedModel, selectedTrim, activeMarkets]);
+  }, [
+    data,
+    selectedYear,
+    selectedMake,
+    selectedModel,
+    selectedTrim,
+    activeMarkets,
+  ]);
 
   const marketSummary = useMemo(() => {
     return activeMarkets
@@ -226,11 +240,14 @@ export default function App() {
   }, [marketSummary]);
 
   const vehicleLabel = useMemo(() => {
-    const parts = [selectedMake, selectedModel, selectedTrim].filter(
-      (item) => item !== "ALL"
-    );
+    const parts = [
+      selectedYear,
+      selectedMake,
+      selectedModel,
+      selectedTrim,
+    ].filter((item) => item !== "ALL");
     return parts.length ? parts.join(" • ") : "All vehicles";
-  }, [selectedMake, selectedModel, selectedTrim]);
+  }, [selectedYear, selectedMake, selectedModel, selectedTrim]);
 
   function toggleMarket(market) {
     setSelectedMarkets((prev) => {
@@ -249,6 +266,7 @@ export default function App() {
   }
 
   function resetFilters() {
+    selectedYear("ALL");
     setSelectedMake("ALL");
     setSelectedModel("ALL");
     setSelectedTrim("ALL");
@@ -571,13 +589,15 @@ export default function App() {
 
       <div className="page">
         <div className="container">
-             <div className="note-card">
+          <div className="note-card">
             <div className="section-title">How to use it</div>
 
             <div className="note-grid">
               <div className="note-box">
                 <strong>1. Pick the car</strong>
-                <div>Choose make, model, and trim to isolate the exact vehicle.</div>
+                <div>
+                  Choose make, model, and trim to isolate the exact vehicle.
+                </div>
               </div>
 
               <div className="note-box">
@@ -587,7 +607,9 @@ export default function App() {
 
               <div className="note-box">
                 <strong>3. Follow the spread</strong>
-                <div>Buy from the lowest median market and sell in the highest one.</div>
+                <div>
+                  Buy from the lowest median market and sell in the highest one.
+                </div>
               </div>
             </div>
           </div>
@@ -596,9 +618,9 @@ export default function App() {
               <div className="hero-badge">Vehicle Market Profit Dashboard</div>
               <h1>Compare buy market and resale market for the same car.</h1>
               <p>
-                Select make, model, trim, and one or more provinces or cities from
-                your CSV. The dashboard shows the lowest market, the strongest
-                resale market, and the best possible price spread.
+                Select make, model, trim, and one or more provinces or cities
+                from your CSV. The dashboard shows the lowest market, the
+                strongest resale market, and the best possible price spread.
               </p>
 
               <div className="hero-tags">
@@ -618,6 +640,26 @@ export default function App() {
               </div>
 
               <div className="filters-grid">
+                <div className="field">
+                  <label>Year</label>
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => {
+                      setSelectedYear(e.target.value);
+                      setSelectedMake("ALL");
+                      setSelectedModel("ALL");
+                      setSelectedTrim("ALL");
+                    }}
+                  >
+                    <option value="ALL">All years</option>
+                    {yearOptions.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="field">
                   <label>Make</label>
                   <select
@@ -702,9 +744,12 @@ export default function App() {
           <div className="stats-grid">
             <div className="stat">
               <div className="stat-title">Matching listings</div>
-              <div className="stat-value">{numberFmt.format(filteredRows.length)}</div>
+              <div className="stat-value">
+                {numberFmt.format(filteredRows.length)}
+              </div>
               <div className="stat-hint">
-                Rows that match the current make / model / trim / market filters.
+                Rows that match the current make / model / trim / market
+                filters.
               </div>
             </div>
 
@@ -743,26 +788,48 @@ export default function App() {
 
           <div className="main-grid">
             <div className="card">
-              <div className="section-title">Median vs average price by market</div>
+              <div className="section-title">
+                Median vs average price by market
+              </div>
               <div className="section-subtitle">
-                Quick comparison of where the selected vehicle is cheaper or stronger.
+                Quick comparison of where the selected vehicle is cheaper or
+                stronger.
               </div>
 
               <div className="chart-box">
                 {chartData.length ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
+                    <BarChart
+                      data={chartData}
+                      margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="market" tickLine={false} axisLine={false} />
+                      <XAxis
+                        dataKey="market"
+                        tickLine={false}
+                        axisLine={false}
+                      />
                       <YAxis
                         tickLine={false}
                         axisLine={false}
-                        tickFormatter={(value) => `$${Math.round(value / 1000)}k`}
+                        tickFormatter={(value) =>
+                          `$${Math.round(value / 1000)}k`
+                        }
                       />
                       <Tooltip formatter={(value) => money.format(value)} />
                       <Legend />
-                      <Bar dataKey="medianPrice" name="Median price" fill="#0f172a" radius={[10, 10, 0, 0]} />
-                      <Bar dataKey="avgPrice" name="Average price" fill="#2563eb" radius={[10, 10, 0, 0]} />
+                      <Bar
+                        dataKey="medianPrice"
+                        name="Median price"
+                        fill="#0f172a"
+                        radius={[10, 10, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="avgPrice"
+                        name="Average price"
+                        fill="#2563eb"
+                        radius={[10, 10, 0, 0]}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
@@ -780,7 +847,10 @@ export default function App() {
               {bestRoutes.length ? (
                 <div className="routes">
                   {bestRoutes.slice(0, 6).map((route, index) => (
-                    <div className="route-card" key={`${route.buyMarket}-${route.sellMarket}-${index}`}>
+                    <div
+                      className="route-card"
+                      key={`${route.buyMarket}-${route.sellMarket}-${index}`}
+                    >
                       <div className="route-top">
                         <div>
                           <div className="route-rank">Route #{index + 1}</div>
@@ -804,7 +874,8 @@ export default function App() {
                         <div className="route-box">
                           <div className="route-label">Sell median</div>
                           <div className="route-value">
-                            {route.sellMarket} • {money.format(route.sellMedian)}
+                            {route.sellMarket} •{" "}
+                            {money.format(route.sellMedian)}
                           </div>
                         </div>
                       </div>
@@ -813,8 +884,9 @@ export default function App() {
                 </div>
               ) : (
                 <div className="empty">
-                  No profitable routes found. This usually means you only have one
-                  market in the filtered data, or the selected filters are too narrow.
+                  No profitable routes found. This usually means you only have
+                  one market in the filtered data, or the selected filters are
+                  too narrow.
                 </div>
               )}
             </div>
@@ -841,9 +913,15 @@ export default function App() {
                   <div className="table-row" key={row.market}>
                     <div className="strong">{row.market}</div>
                     <div>{numberFmt.format(row.listings)}</div>
-                    <div className="strong">{money.format(row.medianPrice)}</div>
+                    <div className="strong">
+                      {money.format(row.medianPrice)}
+                    </div>
                     <div>{money.format(row.avgPrice)}</div>
-                    <div>{row.avgOdometer ? numberFmt.format(row.avgOdometer) : "—"}</div>
+                    <div>
+                      {row.avgOdometer
+                        ? numberFmt.format(row.avgOdometer)
+                        : "—"}
+                    </div>
                     <div>{row.avgGrade ? row.avgGrade.toFixed(2) : "—"}</div>
                   </div>
                 ))}
@@ -852,8 +930,6 @@ export default function App() {
               <div className="empty">No rows matched the current filters.</div>
             )}
           </div>
-
-       
         </div>
       </div>
     </>
