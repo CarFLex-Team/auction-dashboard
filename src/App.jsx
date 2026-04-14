@@ -163,10 +163,10 @@ export default function App() {
   const filteredRows = useMemo(() => {
     return data.filter(
       (row) =>
-        row.year === selectedYear &&
+        (selectedYear === "ALL" || row.year === selectedYear) &&
         row.make === selectedMake &&
         row.model === selectedModel &&
-        row.trim === selectedTrim &&
+        (selectedTrim === "ALL" || row.trim === selectedTrim) &&
         activeMarkets.includes(row.province),
     );
   }, [
